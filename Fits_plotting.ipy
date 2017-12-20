@@ -1,0 +1,106 @@
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.ndimage.filters import gaussian_filter
+
+plate = fits.open('Fits_files/'+'spec-5773-56009-0378.fits')
+
+#Extract flux and wavelength and smooth flux and rescale wave
+ptable = plate[1].data
+flux = ptable.field(0)
+logwave = ptable.field(1)
+wave = 10**logwave
+flux = gaussian_filter(flux, sigma = 2)
+
+
+#plot initial data
+plt.figure(figsize=(15,5), dpi = 100)
+plt.plot(wave,flux)
+plt.show()
+
+#Find emission peaks by searching for their id in the array
+#1+z = obs/rest 
+linewave = []
+wavecutidx = []
+plines = plate[3].data
+
+for i in range(6):
+	linewave.append((1+plines.field(5)[i])*plines.field(4)[i])
+	wavecutidx.append((np.abs(wave - linewave[i])).argmin())
+
+wavecutidx.append(len(wave)+50)
+linewave = np.asarray(linewave)
+wavecutidx = np.asarray(wavecutidx)
+
+print('Redshift Calculated & index found')
+
+#Construct cut data without the peaks
+wavecut = []
+fluxcut = []
+for z in range(6):
+	for i in range(wavecutidx[z]+150,wavecutidx[z+1]):
+		if wavecutidx[z+1] - 150 > i: 
+			wavecut.append(wave[i])
+			fluxcut.append(flux[i])
+wavecut = np.asarray(wavecut)
+fluxcut = np.asarray(fluxcut)
+
+#Fit the cut data to a poly line for continuum
+pval = np.polyfit(wavecut,fluxcut,6)
+p = np.poly1d(pval)
+
+#Construct the removed continuum flux with the poly function
+fluxpoly = []
+fluxnorm = []
+
+for i in range(len(wave)):
+	fluxpoly.append(p(wave[i]))
+	fluxnorm.append(flux[i] - fluxpoly[i])
+
+fluxpoly = np.asarray(fluxpoly)
+fluxnorm = np.asarray(fluxnorm)
+
+polyup = np.asarray(1.1*fluxpoly-fluxpoly)
+polydw = np.asarray(0.9*fluxpoly-fluxpoly)
+
+#plot the data with continuum removed
+#plt.figure(figsize = (15,5), dpi = 100)
+#plt.plot(wave,fluxnorm,'-r')
+#plt.plot((wave[0],wave[-1]),(0,0),'--k')
+#plt.plot(wave,polyup,'--',color = 'grey')
+#plt.plot(wave,polydw,'--',color = 'grey')
+#plt.show()
+
+#Zooming in function
+#Takes in an input range and fit it into a plot of suitable scale
+def zooming(x1,x2):
+	zoomid = []
+	zoomid.append((np.abs(wave - x1)).argmin())
+	zoomid.append((np.abs(wave - x2)).argmin())
+	
+	zoomwave = []
+	zoomflux = []
+	zoomup = []
+	zoomdw = []
+	for i in range(zoomid[0],zoomid[1]+1):
+		zoomwave.append(wave[i])
+		zoomflux.append(fluxnorm[i])
+		zoomup.append(polyup[i])
+		zoomdw.append(polydw[i])
+	
+	zoomwave = np.asarray(zoomwave)
+	zoomflux = np.asarray(zoomflux)	
+	
+	plt.figure()
+	plt.plot(zoomwave,zoomflux,'-r')
+	plt.plot(zoomwave,zoomup, '--', color = 'grey')
+	plt.plot(zoomwave,zoomdw, '--', color = 'grey')
+	plt.plot((zoomwave[0],zoomwave[-1]),(0,0),'--k')
+	plt.show()	
+	return (zoomwave,zoomflux)
+
+w1,f1 = zooming(7500,8560)
+
+
+
+		
