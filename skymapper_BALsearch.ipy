@@ -1,0 +1,5 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+%run ../Convolution_Code/filter_load.ipy  # loads the filters, which introduces all_filter and filter_flux_range
+%run ../Convolution_Code/star_load.ipy # brings up the stars.csv files

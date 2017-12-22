@@ -1,0 +1,45 @@
+from astropy.io import fits
+
+if __name__ == '__main__':
+    import numpy as np
+
+
+# Input spectrum, finds end point
+# Output redshift limits of end points w.r.t filter range
+def rangefinder(wave):
+    rangew = np.asarray([wave[-1], wave[0]])
+    zlim = []
+    for x in frange:
+        zlim.append(x / rangew - 1.0)
+
+    return np.round(zlim, 2)
+
+
+# Input name for extraction (These are spectrum from the paper)
+# Output extracted spectrum + redshift limits
+def loadspec(name, mult):
+    spec = np.loadtxt(name)
+
+    flux = mult * spec[:, 1]
+    wave = spec[:, 0]
+
+    zrange = rangefinder(wave)
+
+    return zrange, wave, flux
+
+
+# Input fits files to open
+# Output redshift and spectrum of the quasar
+def loadfits(name):
+    plate = fits.open('Fits_files/' + name)
+
+    # Extract flux and wavelength and smooth flux and rescale wave
+    ptable = plate[1].data
+    plines = plate[3].data
+    flux = ptable.field(0)
+    logwave = ptable.field(1)
+    wave = 10 ** logwave
+    flux = gaussian_filter(flux, sigma=2)
+    zshift = plines.field(5)[3]
+
+    return zshift, wave, flux

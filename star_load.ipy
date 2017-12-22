@@ -1,0 +1,64 @@
+# Input file to open
+# Output star plot data removing nan
+if __name__ == '__main__':
+    import numpy as np
+
+
+def starload(csv_file):
+    star = np.genfromtxt(csv_file, delimiter=",", skip_header=1)
+
+    A = np.asarray(star[:, 0])
+    B = np.asarray(star[:, 1])
+    C = np.asarray(star[:, 2])
+
+    AB = A - B
+    BC = B - C
+
+    # Revoming the nans (probably can remove this now that I know how to select non nans)
+    AB = np.asarray(AB[np.abs(BC) > 0])
+    BC = np.asarray(BC[np.abs(BC) > 0])
+
+    return AB, BC
+
+
+def starshow(index, AB, BC, yfit, se):
+    if __name__ == '__main__':
+        import matplotlib.pyplot as plt
+    plt.figure('Col-Col plots')
+    plt.tight_layout()
+    if index == 0:
+        plt.subplot(221)
+        plt.subplot(221).set_title('U-V-G')
+    if index == 1:
+        plt.subplot(222)
+        plt.subplot(222).set_title('V-G-R')
+    if index == 2:
+        plt.subplot(223)
+        plt.subplot(223).set_title('G-R-I')
+    if index == 3:
+        plt.subplot(224)
+        plt.subplot(224).set_title('R-I-Z')
+    plt.scatter(AB, BC, color='grey')
+    plt.plot(AB, yfit(AB), 'm', alpha=0.5)
+    plt.plot(AB, yfit(AB) + se, 'm--', alpha=0.3)
+    plt.plot(AB, yfit(AB) - se, 'm--', alpha=0.3)
+
+
+# Potential BAL in VGR plot 106.460236, -52.324928
+
+# Testing with a sample quasar
+'''def spectest():
+    showall()
+
+    zspec, xspec, yspec = loadfits('spec-5773-56009-0378.fits')
+    spec = [xpec, yspec]
+    gspec = convolution(filter[2], spec)
+    rspec = convolution(filter[3], spec)
+    ispec = convolution(filter[4], spec)
+
+    gr = -2.5 * np.log10(gspec / rspec)
+    ri = -2.5 * np.log10(rspec / ispec)
+
+    plt.figure('Col-Col plots')
+    plt.subplot(223)
+    plt.scatter(gr, ri)'''
