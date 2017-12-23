@@ -1,0 +1,97 @@
+import numpy as np
+from scipy.interpolate import interp1d
+
+%run ../main_code/filter_load.ipy  # loads the filters, which introduces all_filter and filter_flux_range
+%run ../main_code/star_load.ipy # load up the band magnitudes and load in plotting methods
+
+
+# These are the files from the paper. The order of name and mult is important
+# Any changes to the files should have bzr_name and bzr_mult modified
+# The 0th entry of the array is just for a good number system with the file names
+bzr_name = ['bzr1.dat', 'bzr1.dat', 'bzr2.dat', 'bzr3.dat', 'bzr4.dat']
+bzr_mult = np.asarray([0.0, 2.0, 1.6, 4 / 3.0, 1.5, 1.5])
+
+# Input spectrum, finds end point
+# Output redshift limits of end points w.r.t filter range
+def rangefinder(wave):
+    wave_range = np.asarray([wave[-1], wave[0]])
+    z_limit = [x / wave_range - 1.0 for x in filter_flux_range]
+    return np.round(z_limit, 2)
+
+
+# Opens up the bzr file and returns the flux and wavelength
+# mult is the arbitary flux scaling, so returns wave, flux
+def loadspec(bzr_file, mult):
+    spec = np.loadtxt(bzr_file)
+    return [spec[:, 0], mult * spec[:,1]]
+
+
+bzr_spec = [loadspec('../Composite_spec/' + n, m) for n, m in zip(bzr_name, bzr_mult)]
+bzr_range = [rangefinder(w) for w in [bzr_spec[i][0] for i in range(0, len(bzr_spec))]]
+
+
+def xy_window_select(x_range, spec_xy):
+    # find where x1 and x2 is in the xarr
+    if x_range[0] >= spec_xy[0][-1] or x_range[1] <= spec_xy[0][0]:
+        print('window selecting error, list out of specified range')
+        return [0,0]
+    elif x_range[0] >= spec_xy[0][0] or x_range[1] <= spec_xy[0][-1]:
+        xid = [(np.abs(spec_xy[0] - x_range[0])).argmin(), (np.abs(spec_xy[0] - x_range[1])).argmin()]
+    # Splice out the range of values
+        return [np.asarray(spec_xy[0][xid[0] + 1:xid[1]]), np.asarray(spec_xy[1][xid[0] + 1:xid[1]])]
+    else:
+        print('window selecting error, list out of specified range on one side')
+        return [0,0]
+
+
+def band_convolution(spec_xy, filter_id):
+    # Use filter min and max to select the spectra range of interest
+    # Interpolate both spectra and filter to have equal and even gaps in x axis
+    windowed_xy = xy_window_select([all_filter[filter_id][0][0], all_filter[filter_id][0][-1]], spec_xy)
+    spec_interp = interp1d(windowed_xy[0], windowed_xy[1], kind='cubic')
+    filter_interp = interp1d(all_filter[filter_id][0], all_filter[filter_id][1], kind='cubic')
+
+    # Create new x array with even gaps, multiply spectra and filter and the gap difference for the area under curve
+    x_new = np.linspace(windowed_xy[0][0], windowed_xy[0][-1], len(windowed_xy[0]))
+    xdiff = x_new[1]-x_new[0]
+    convo = filter_interp(x_new) * spec_interp(x_new)
+    return np.sum(np.delete(convo, -1, 0)) * xdiff
+
+
+# This function takes in a given spectra and converts it into colours in some filter space. Returns a 2d array for AB vs BC plot
+def spec_colour_diff(spec_xy, zrange, filter_id):
+    z1 = zrange[filter_id + 2][0]   # Picks the min and max possible redshift
+    z2 = zrange[filter_id][1]       # filter_id only make sense up to 3
+    z_arr = np.linspace(z1, z2, 500)
+    # If filter bands not continuous (ABC) then the redshift won't make sense too
+    AB = []
+    BC = []
+
+    for z in z_arr:                 # With each possible redshift, convolve with 3 filter
+        redshift_spectra = spec_xy[0] * (1 + z)
+        Flux_A = band_convolution([redshift_spectra, spec_xy[1]], filter_id - len(all_filter))
+        Flux_B = band_convolution([redshift_spectra, spec_xy[1]], filter_id - len(all_filter)+1)
+        Flux_C = band_convolution([redshift_spectra, spec_xy[1]], filter_id - len(all_filter)+2)
+
+        AB.append(-2.5 * np.log10(Flux_A / Flux_B))
+        BC.append(-2.5 * np.log10(Flux_B / Flux_C))
+
+    return np.asarray(AB), np.asarray(BC)
+
+def spec_colour_plot(AB, BC):
+    if __name__ == '__main__':
+        import matplotlib.pyplot as plt
+    plt.subplot(121)
+    plt.plot(np.delete(AB, [0, -1], 0), np.delete(BC, [0, -1], 0), 'black')
+    plt.plot((AB[0], AB[1]), (BC[0], BC[1]), 'blue')
+    plt.plot((AB[-2], AB[-1]), (BC[-2], BC[-1]), 'red')
+
+
+UVG = (0, UV, VG)
+VGR = (1, VG, GR)
+GRI = (2, GR, RI)
+RIZ = (3, RI, IZ)
+sm_colour_scatter(*GRI)
+for i in range(1, 5):
+    a_tmp, b_tmp = spec_colour_diff(bzr_spec[i], bzr_range[i], 2)
+    spec_colour_plot(a_tmp, b_tmp)

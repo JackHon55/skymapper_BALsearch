@@ -1,0 +1,20 @@
+I want to re code my code for plotting up the colour colour plots, convoluting the spectra and creating the histogram and statistics
+The order of how things should work is that at the start of the file, it should load in the filters, then the stars, then spectra, convolve the spectra then plot the spectra with the stars.
+
+I want plotting and analysis to be seperated, so star_plot() type function should exist. I also want each file to be able to run individually, without needing to run the main file to set the order and define everything. No cheeky global variables as that is too hard to track down.
+
+So start simply by importing the packages, then run col_code.ipy
+This generates all_filter tuple and filter_flux_range list
+Then run star_load.ipy.
+
+star_load should first open the file, then with the provided header numbers, read out the required colours, create the colour difference arrays, find the fits and standard deviation, and be able to plot the scatter and histogram. A subplot is too intense to plot, so split it up
+
+loading in the spectra from bzr files is easy. Just read file, then find the redshift ranges with filter_flux_range. Next for convolution, I want to input one spectra, and it creates the array in all allowed redshifts in all colours
+
+
+While looking at the plots in topcat, got v-g vs class star, there is a band at class_star 0.5. The band exists in all other colours except u-v but less spreadout. Check it out. I dont think this is very useful area to search for after thinking about it. AGN even BAL should be point like, so 0.5 must just be a subclass in the class_star category that is something else.
+
+
+In petrosian magnitudes, all colour space seem to just have wide spread that engulfs the spectra ranges. But in psf amgnitudes, the spread is smaller and in VGR and GRI, BAL spectra are outliers to the stellar locus. I plan to topcat search these area to check for their spectra, and hopefully find them in 6dFGS.
+
+

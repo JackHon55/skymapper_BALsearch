@@ -1,0 +1,177 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import interp1d
+import scipy.stats as sts
+import sys
+
+%run ../Convolution_Code/col_code2.ipy
+%run ../Convolution_Code/loadspec2.ipy
+%run ../Convolution_Code/starplot2.ipy
+
+plt.ion()
+#Input an array with arbitary selection range
+#Output an array best fit to the range
+#0.12s --> 0.10s
+def zooming(x12,xarr,plot):
+	#find where x1 and x2 is in the xarr
+	zoomid = [(np.abs(xarr[0] - x12[0])).argmin(),(np.abs(xarr[0] - x12[1])).argmin()]
+	#Splice out the range of values
+	zoomarr = [xarr[0][zoomid[0]+1:zoomid[1]],xarr[1][zoomid[0]+1:zoomid[1]]]
+	
+	if plot == 1:
+		plt.figure()
+		plt.plot(zoomarr[0],zoomarr[1],'-r')
+		plt.show()	
+	return zoomarr
+
+#Input two array, multiply each point of that array
+#output the integral of the multiplied array
+#0.01s -> 0.0s
+def convolution(filterxy,xarr):
+	xarrnew = zooming([filterxy[0][0],filterxy[0][-1]],xarr,0)
+	f = interp1d(filterxy[0],filterxy[1],kind='cubic')
+	filterynew = f(xarrnew[0])
+	xdiff = []
+	for i in range(0,len(xarrnew[0])-1):
+		xdiff.append(xarrnew[0][i+1]-xarrnew[0][i])
+	xdiff = np.asarray(xdiff)
+	convo = filterynew*xarrnew[1]
+	I = np.sum(np.delete(convo,-1,0)*xdiff)
+
+	return I
+
+#Input with 3 set of filter to compare (index) the spectrum and allowed redshift range
+#Output graph of the spectrum on col-col plot with varying redshift
+#0.54s --> 0.45s
+def colcolplot(index,xarr,zrange,plot):
+	z1 = zrange[index+2][0]
+	z2 = zrange[index][1]
+	redz = np.linspace(z1,z2,((np.abs(z2-z1))+0.01)*100)
+
+	AB = []
+	BC = []
+
+	for z in redz:
+		wavez = xarr[0]*(1+z)
+		FluxA = convolution(filter[index-6],[wavez,xarr[1]])
+		FluxB = convolution(filter[index-5],[wavez,xarr[1]])
+		FluxC = convolution(filter[index-4],[wavez,xarr[1]])
+
+		AB.append(-2.5*np.log10(FluxA/FluxB))
+		BC.append(-2.5*np.log10(FluxB/FluxC))
+
+	if plot == 1:
+		plt.figure('Col-Col plots')
+		if index == 0:
+			plt.subplot(221)
+			plt.subplot(221).set_title('U-V-G')
+		if index == 1:
+			plt.subplot(222)
+			plt.subplot(222).set_title('V-G-R')
+		if index == 2:
+			plt.subplot(223)
+			plt.subplot(223).set_title('G-R-I')
+		if index == 3:
+			plt.subplot(224)
+			plt.subplot(224).set_title('R-I-Z')				
+		plt.plot(np.delete(AB,[0,-1],0),np.delete(BC,[0,-1],0),'black')
+		plt.plot((AB[0],AB[1]),(BC[0],BC[1]),'blue')
+		plt.plot((AB[-2],AB[-1]),(BC[-2],BC[-1]),'red')
+		#plt.show()
+
+def secalc(xs,ys):
+	yfit = np.poly1d(np.polyfit(xs,ys,1))
+
+	ressq = 0.0
+	resarr = []
+	for i in range(0,len(xs)):
+		ressq = ressq + (ys[i]-yfit(xs[i]))**2.0
+		resarr.append(abs(ys[i]-yfit(xs[i])))
+
+	se = (ressq/(len(xs)-2.0))**0.5
+	return yfit,se,np.asarray(resarr)
+
+def starhistogram(index,se,res):
+	restag = []
+	for i in range(0,len(res)):
+		if res[i] <= 1.0*se:
+			restag.append(1.0)
+		if 1.0*se< res[i] <= 2.0*se:
+			restag.append(2.0)
+		if 2.0*se< res[i] <= 3.0*se:
+			restag.append(3.0)
+		if 3.0*se< res[i] <= 4.0*se:
+			restag.append(4.0)
+		if 4.0*se< res[i] <= 5.0*se:
+			restag.append(5.0)
+		if res[i] > 5.0*se:
+			restag.append(6.0)
+	plt.figure('Star Histogram')
+	plt.tight_layout()
+	plt.ylim(0,1.0)
+	if index == 0:
+		plt.subplot(221)
+		plt.subplot(221).set_title('U-V-G')
+	if index == 1:
+		plt.subplot(222)
+		plt.subplot(222).set_title('V-G-R')
+	if index == 2:
+		plt.subplot(223)
+		plt.subplot(223).set_title('G-R-I')
+	if index == 3:
+		plt.subplot(224)
+		plt.subplot(224).set_title('R-I-Z')
+		plt.ylim(0,1)
+	plt.hist(restag,bins=[1.0,2.0,3.0,4.0,5.0,6.0,7.0],color='grey',normed=True)
+	return restag
+
+#Start of Code ------------------------------------------------------------------------------------
+
+bzr_range = [0,[],[],[],[]]
+bzr_spec = [[0,[],[],[],[]],[0,[],[],[],[]]]
+bzr_name = [0,'bzr1.dat','bzr2.dat','bzr3.dat','bzr4.dat']
+bzr_mult = [0.0,2.0,1.6,4/3.0,1.5]
+star_name = ['UVG','VGR','GRI','RIZ']
+star_residue = [[],[],[],[]]
+
+for i in range(0,4):
+	ABs,BCs = starload("Fits_files/stars"+ star_name[i] +".csv")
+	fit,se,star_residue[i] = secalc(ABs,BCs)
+	starshow(i,ABs,BCs,fit,se)
+	starhistogram(i,se,star_residue[i])
+
+for i in range(1,5):
+	(bzr_range[i],bzr_spec[0][i],bzr_spec[1][i]) = loadspec('Composite_spec/'+bzr_name[i],bzr_mult[i])
+
+def showall():
+	for specind in range (1,5):
+		for i in range(0,4):
+			colcolplot(i,[bzr_spec[0][specind],bzr_spec[1][specind]],bzr_range[specind],1)
+showall()
+
+
+
+	
+#For bzr1
+#	Col	Zmin	Zmax
+#----------------------------------
+#	U	0.15	1.30
+#	V	0.25	1.65
+#	G	0.95	2.00
+#	R	1.15	2.65
+#	I	1.55	4.20
+#	Z	2.10	5.20
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,121 @@
+# Input file to open. Very important that csv file has no empty entries.
+# In TOPCAT, make sure each possible value that can be empty has abs(name) > 0
+from functools import lru_cache
+
+if __name__ == '__main__':
+    import numpy as np
+
+
+# Opens the file in csv format only. Returns the whole csv_file.
+@lru_cache(maxsize=2 ** 17)
+def openSM(csv_file):
+    return np.genfromtxt(csv_file, delimiter=',', skip_header=1)
+
+
+# Take coloumns from csv file with specified cols, returns a list of numpy arrays
+@lru_cache(maxsize=2 ** 16)
+def extract_coloumns(csv_file, *col):
+    SM_data = openSM(csv_file)
+    return [(np.asarray(SM_data[:, i])) for i in col]
+
+
+# Take 2 band coloumn id, and return the colour (band mag differences)
+@lru_cache(maxsize=2 ** 14)
+def gen_colours(csv_file, band_1, band_2):
+    A, B = extract_coloumns(csv_file, band_1, band_2)
+    return A - B
+
+
+# Take in a dict to assign band to a number, returns all 5 colours
+@lru_cache(maxsize=2 ** 14)
+def gen_all_colours(csv_file, U, V, G, R, I, Z):
+    UV = gen_colours(csv_file, U, V)
+    VG = gen_colours(csv_file, V, G)
+    GR = gen_colours(csv_file, G, R)
+    RI = gen_colours(csv_file, R, I)
+    IZ = gen_colours(csv_file, I, Z)
+    return UV, VG, GR, RI, IZ
+
+
+# Upon running the code, this gets initiated and the code generates all the colours
+'''sm_bands = {'U': 5, 'V': 6, 'G': 7, 'R': 8, 'I': 9, 'Z': 10}
+UV, VG, GR, RI, IZ = gen_all_colours('../SM_1M_data.csv', **sm_bands)'''
+
+# sm_colours = [0, 1, 2, 3, 4]
+# UV, VG, GR, RI, IZ = extract_coloumns('../SM_1M_colour.csv', *sm_colours)
+
+sm_colours = [11, 12, 13, 14, 15]
+UV, VG, GR, RI, IZ = extract_coloumns('../SM_1M_data_psf.csv', *sm_colours)
+
+
+# Find the fit of the data and standard error. Can improve to use zip
+def sm__colour_fitting_calc(xs, ys):
+    yfit = np.poly1d(np.polyfit(xs, ys, 1))
+
+    # Does the ressidual squared calculation
+    ressq = np.sum((ys - yfit(xs)) ** 2.0)
+    se = (ressq / (len(xs) - 2.0)) ** 0.5
+    return yfit, se
+
+
+# With the residual for every point, count the number of res between each se window
+def sm_histrogram_data(xs, ys, yfit, se):
+    res = np.asarray([abs(ys[i] - yfit(xs[i])) for i in range(0, len(xs))])
+    counts = [len(res[res <= 1.0 * se]), len(res[(1.0 * se < res) & (res <= 2.0 * se)]),
+              len(res[(2.0 * se < res) & (res <= 3.0 * se)]), len(res[(3.0 * se < res) & (res <= 4.0 * se)]),
+              len(res[(4.0 * se < res) & (res <= 5.0 * se)]), len(res[res > 5.0 * se])]
+    return counts
+
+
+# Plot the colours
+def sm_colour_scatter(index, AB, BC):
+    if __name__ == '__main__':
+        import matplotlib.pyplot as plt
+    yfit, se = sm__colour_fitting_calc(AB, BC)
+    counts = sm_histrogram_data(AB, BC, yfit, se)
+    barx = np.linspace(1, 6, len(counts))
+    plotsize = (10, 5)
+    if index == 0:
+        plt.figure('U-V-G', dpi=120, figsize=plotsize)
+    if index == 1:
+        plt.figure('V-G-R', dpi=120, figsize=plotsize)
+    if index == 2:
+        plt.figure('G-R-I', dpi=120, figsize=plotsize)
+    if index == 3:
+        plt.figure('R-I-Z', dpi=120, figsize=plotsize)
+    plt.subplot(121)
+    plt.scatter(AB, BC, s=0.5, color='grey')
+    plt.axis('equal')
+    plt.plot(AB, yfit(AB), 'm', alpha=0.5)
+    plt.plot(AB, yfit(AB) + se, 'm--', alpha=0.3)
+    plt.plot(AB, yfit(AB) - se, 'm--', alpha=0.3)
+    plt.tight_layout()
+    plt.subplot(122)
+    plt.bar(barx, counts/np.sum(counts), -1, align='edge')
+    plt.tight_layout()
+
+
+# Only works for the 5 colours in SM
+def sm_colour_complete_show(*colours):
+    for i in range(0, 4):
+        sm_colour_scatter(i, colours[i], colours[i + 1])
+
+
+# Potential BAL in VGR plot 106.460236, -52.324928
+
+# Testing with a sample quasar
+'''def spectest():
+    showall()
+
+    zspec, xspec, yspec = loadfits('spec-5773-56009-0378.fits')
+    spec = [xpec, yspec]
+    gspec = convolution(filter[2], spec)
+    rspec = convolution(filter[3], spec)
+    ispec = convolution(filter[4], spec)
+
+    gr = -2.5 * np.log10(gspec / rspec)
+    ri = -2.5 * np.log10(rspec / ispec)
+
+    plt.figure('Col-Col plots')
+    plt.subplot(223)
+    plt.scatter(gr, ri)'''
