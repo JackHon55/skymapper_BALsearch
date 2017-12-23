@@ -1,8 +1,0 @@
-I want to re code my code for plotting up the colour colour plots, convoluting the spectra and creating the histogram and statistics
-The order of how things should work is that at the start of the file, it should load in the filters, then the stars, then spectra, convolve the spectra then plot the spectra with the stars.
-
-I want plotting and analysis to be seperated, so star_plot() type function should exist. I also want each file to be able to run individually, without needing to run the main file to set the order and define everything. No cheeky global variables as that is too hard to track down.
-
-So start simply by importing the packages, then run col_code.ipy
-This generates all_filter tuple and filter_flux_range list
-Then run star_load.ipy. star_load.ipy should already load in the data from skymapper
