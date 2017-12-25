@@ -1,0 +1,79 @@
+from astropy.io import fits
+from scipy.ndimage import gaussian_filter
+
+if __name__ == '__main__':
+    import numpy as np
+    from scipy.interpolate import interp1d
+    import matplotlib.pyplot as plt
+
+    '''% run ../main_code/filter_load.ipy  # loads the filters, which introduces all_filter and filter_flux_range
+    % run ../main_code/star_load.ipy  # load up the band magnitudes and load in plotting methods'''
+
+
+    def xy_window_select(x_range, spec_xy):
+        # find where x1 and x2 is in the xarr
+        if x_range[0] >= spec_xy[0][-1] or x_range[1] <= spec_xy[0][0]:
+            print('window selecting error, list out of specified range')
+            return [0, 0]
+        elif x_range[0] >= spec_xy[0][0] and x_range[1] <= spec_xy[0][-1]:
+            xid = [(np.abs(spec_xy[0] - x_range[0])).argmin(), (np.abs(spec_xy[0] - x_range[1])).argmin()]
+            # Splice out the range of values
+            return [np.asarray(spec_xy[0][xid[0] + 1:xid[1]]), np.asarray(spec_xy[1][xid[0] + 1:xid[1]])]
+        else:
+            print('window selecting error, list out of specified range on one side')
+            return [0, 0]
+
+
+    def band_convolution(spec_xy, filter_id):
+        # Use filter min and max to select the spectra range of interest
+        # Interpolate both spectra and filter to have equal and even gaps in x axis
+        windowed_xy = xy_window_select([all_filter[filter_id][0][0], all_filter[filter_id][0][-1]], spec_xy)
+        spec_interp = interp1d(windowed_xy[0], windowed_xy[1], kind='cubic')
+        filter_interp = interp1d(all_filter[filter_id][0], all_filter[filter_id][1], kind='cubic')
+
+        # Create new x array with even gaps, multiply spectra and filter and the gap difference for the area under curve
+        x_new = np.linspace(windowed_xy[0][0], windowed_xy[0][-1], len(windowed_xy[0]))
+        xdiff = x_new[1] - x_new[0]
+        convo = filter_interp(x_new) * spec_interp(x_new)
+        return np.sum(np.delete(convo, -1, 0)) * xdiff
+
+
+# Input fits files to open. Can only take sdss fits file due to header arrangement
+# SDSS spectra already redshifted, but I extract anyways for further uses
+def fits_redshift_spectra(sdss_fits):
+    plate = fits.open(sdss_fits)
+    ptable = plate[1].data          # plate[1] is where the spectra information is
+    plines = plate[3].data          # plate[3] is where the redshift data is
+    flux = ptable.field(0)
+    logwave = ptable.field(1)
+    wave = np.asarray(10 ** logwave)           # rescale the flux from logscale
+    flux = gaussian_filter(flux, sigma=2)       # smooth the flux
+    zshift = plines.field(5)[3]
+
+    return zshift, [wave, flux]
+
+
+fits_data = np.genfromtxt('../quasar_bal.csv', delimiter=',', skip_header=0, dtype=str)
+fits_file_names = np.asarray(fits_data[:, 3])
+
+sdss_GR = []
+sdss_RI = []
+sdss_zshift = []
+
+for i in range(0, 310):
+    z_tmp, sdss_spec = fits_redshift_spectra(fits_file_names[i])
+    flux_G = band_convolution(sdss_spec, 1)
+    flux_R = band_convolution(sdss_spec, 2)
+    flux_I = band_convolution(sdss_spec, 3)
+
+    sdss_GR.append(-2.5 * np.log10(flux_G / flux_R))
+    sdss_RI.append(-2.5 * np.log10(flux_R / flux_I))
+    sdss_zshift.append(z_tmp)
+
+'''UVG = (0, UV, VG)
+VGR = (1, VG, GR)
+GRI = (2, GR, RI)
+RIZ = (3, RI, IZ)'''
+sm_colour_scatter(*VGR)
+plt.subplot(121)
+plt.scatter(sdss_GR, sdss_RI, s=0.7, color='red')

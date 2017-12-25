@@ -66,4 +66,3 @@ def filtershow():
     plt.xlabel('Wavelength (Angstroms)')
     plt.ylabel('Normalised flux pass')
     plt.tight_layout()
-    plt.show()
